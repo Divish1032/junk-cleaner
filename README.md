@@ -30,6 +30,14 @@ To get started quickly, download the latest installer from our [Releases page](h
 
 _Note: Clicking the buttons above will take you to our latest GitHub release. Download the appropriate `.dmg` (Mac), `.exe` (Windows), or `.AppImage` (Linux) file for your machine._
 
+### ⚡ Automated CLI Install (macOS / Linux)
+
+For a lightning-fast install that automatically bypasses macOS Gatekeeper warnings, paste this into your terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Divish1032/junk-cleaner/main/install.sh | bash
+```
+
 ### 🍏 macOS Installation Note
 
 Because this app is currently open-source and not yet digitally signed with a paid Apple Developer account, macOS Gatekeeper may show a warning saying _"Apple could not verify JunkCleaner is free of malware"_.

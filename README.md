@@ -30,6 +30,17 @@ To get started quickly, download the latest installer from our [Releases page](h
 
 _Note: Clicking the buttons above will take you to our latest GitHub release. Download the appropriate `.dmg` (Mac), `.exe` (Windows), or `.AppImage` (Linux) file for your machine._
 
+### 🍏 macOS Installation Note
+
+Because this app is currently open-source and not yet digitally signed with a paid Apple Developer account, macOS Gatekeeper may show a warning saying _"Apple could not verify JunkCleaner is free of malware"_.
+
+**To open it:**
+
+1. Open your **Applications** folder in Finder.
+2. **Right-click** (or Control-click) the JunkCleaner app icon.
+3. Select **Open** from the context menu.
+4. Click **Open** again on the pop-up warning. (You only need to do this _once_!)
+
 ### Local AI Features
 
 Junk Cleaner utilizes your local processing power for its AI features (Chat, Smart Classification, Health Reports).

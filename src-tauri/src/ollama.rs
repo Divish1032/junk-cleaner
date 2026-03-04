@@ -113,7 +113,7 @@ pub async fn classify_files(
     ollama_url: String,
 ) -> Vec<FileClassification> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
+        .timeout(std::time::Duration::from_secs(300)) // 5 minutes to allow for slow CPU-only inference
         .build()
         .unwrap_or_default();
 
@@ -255,7 +255,7 @@ pub async fn parse_intent(
     ollama_url: String,
 ) -> Result<IntentAction, String> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(120)) // allow for CPU-only parsing
         .build()
         .map_err(|e| format!("Failed to build client: {}", e))?;
 
@@ -310,7 +310,7 @@ pub async fn generate_system_report(
     ollama_url: String,
 ) -> Result<String, String> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60)) // Allow more time for generation
+        .timeout(std::time::Duration::from_secs(300)) // 5 minutes for generation, accommodating CPU inference
         .build()
         .map_err(|e| format!("Failed to build client: {}", e))?;
 

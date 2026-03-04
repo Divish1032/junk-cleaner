@@ -1,65 +1,63 @@
-# JunkCleaner 🗑️
+# 🧹 Junk Cleaner
 
-A smart, cross-platform desktop disk cleaner with AI-powered junk detection — built with Rust + Tauri + React.
+<p align="center">
+  <em>An elegant, AI-powered system cleaner built entirely on local Large Language Models (LLMs). No cloud needed.</em>
+</p>
 
-## Features
+## ✨ Features
 
-- 🔍 **Fast disk scanning** — Parallel directory walker shows size usage per folder
-- 🏷️ **OS-aware junk catalog** — Knows macOS Caches, Xcode DerivedData, Windows Temp, Linux APT cache, node_modules, Python `__pycache__`, Rust `target/`, etc.
-- 🤖 **AI junk detection** — Sends only file _metadata_ (name, size, path, extension, modified date) to a local Ollama LLM for smart classification. No file content is ever read.
-- 📂 **Open in Finder/Explorer** — Every item has a "reveal" button to open the parent folder for manual review
-- ❌ **No auto-delete** — Nothing is ever deleted without your explicit action in Finder
-- 🖥️ **Cross-platform** — macOS, Windows, Linux
+- **AI-Generated System Reports:** Get a readable health summary of your entire system volume directly from an LLM.
+- **Model Deduplication:** Find and isolate heavy `.gguf` weights duplicated across Ollama and LM Studio.
+- **Smart App Uninstaller:** Not just `.app` deletions. The uninstaller parses `.plist` files and deeply scans your Application Support and Preferences to root out lingering data.
+- **Copilot Chat:** Type natural language commands like "find all Xcode Derived Data" to automatically filter your disk without needing complex Regex logic.
+- **Glassmorphism UI:** Stunning aesthetic powered by Tauri and React.
 
-## Tech Stack
+## 🚀 Getting Started
 
-| Layer           | Technology                                    |
-| --------------- | --------------------------------------------- |
-| GUI             | React + TypeScript                            |
-| Desktop Runtime | Tauri v2                                      |
-| File System     | Rust (`walkdir`)                              |
-| AI              | Ollama (local LLM, metadata-only)             |
-| Packaging       | DMG (macOS), NSIS (Windows), AppImage (Linux) |
+To get started quickly, download the latest installer from our [Releases page](#). We build installers for **macOS**, **Windows**, and **Linux**.
 
-## Prerequisites
+### Prerequisites for local AI Features
 
-- [Rust](https://rustup.rs/) 1.70+
-- [Node.js](https://nodejs.org) 18+
-- [Ollama](https://ollama.com) (optional, for AI analysis)
-
-## Getting Started
+Junk Cleaner utilizes your local processing power. To use the AI features (Chat, Smart Classification, Health Reports), you must have **[Ollama](https://ollama.com/)** installed and running on your system with at least one model downloaded.
 
 ```bash
-# Install dependencies
+# Start Ollama API
+ollama serve
+
+# Download a fast reasoning model
+ollama run llama3.2:1b
+```
+
+## 🛠 Building from Source
+
+If you want to contribute or build the application from source, make sure you have **Node.js 18+** and the **Rust tooling** installed.
+
+```bash
+# Clone the repository
+git clone https://github.com/<your-username>/junk-cleaner.git
+
+# Navigate into the project
+cd junk-cleaner
+
+# Install Frontend dependencies
 npm install
 
-# Run in development
-npm run tauri dev
+# Run the Tauri Developer Environment
+npm run dev
+```
 
-# Build installable package
+To build a production bundle manually:
+
+```bash
 npm run tauri build
 ```
 
-## AI Analysis Setup
+## 🤝 Contributing
 
-1. Install [Ollama](https://ollama.ai)
-2. Pull a model: `ollama pull llama3.2` or `ollama pull mistral`
-3. Launch: `ollama serve`
-4. In the app, click **Analyze with AI** — the app auto-detects available models
+We welcome all contributions! Whether it's porting to a new platform, fixing a UI bug, or writing a better Rust implementation for the backend - we'd love to have you.
 
-> **Privacy:** The AI only sees file names, sizes, paths, and modification dates. File content is **never read or sent** anywhere.
+To get started, please check out our [Contributing Guide](CONTRIBUTING.md) and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## Junk Detected by Rule (No AI Needed)
+## 📄 License
 
-| Category           | Examples                                                       |
-| ------------------ | -------------------------------------------------------------- |
-| macOS Caches       | `~/Library/Caches`, `/Library/Caches`                          |
-| macOS Dev          | Xcode DerivedData, CoreSimulator, Archives                     |
-| Cross-platform Dev | `node_modules`, `__pycache__`, `target/`, `.next/`, `.gradle/` |
-| Windows            | `%TEMP%`, Windows Update cache, browser caches                 |
-| Linux              | `~/.cache`, `/var/cache/apt`, `/tmp`                           |
-| All                | Trash / Recycle Bin                                            |
-
-## License
-
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

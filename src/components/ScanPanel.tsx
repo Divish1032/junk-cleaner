@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
+import { OllamaOnboarding } from './OllamaOnboarding';
+import './OllamaOnboarding.css';
 import { ViewMode } from '../types';
 import {
   ScanLine,
@@ -7,7 +9,6 @@ import {
   Brain,
   Trash2,
   HardDrive,
-  Cpu,
   RefreshCw,
   Wifi,
   WifiOff,
@@ -228,65 +229,73 @@ export function ScanPanel({
           </button>
         </div>
 
-      {/* LLM Controls */}
-      <section className="panel-section">
-        <h3>AI Assistant</h3>
-        <div className="model-selector">
-          <label htmlFor="model-select">Model:</label>
-          <select
-            id="model-select"
-            value={selectedModel}
-            onChange={(e) => onModelChange(e.target.value)}
-            disabled={!ollamaOnline || ollamaModels.length === 0}
-          >
-            {ollamaModels.length === 0 ? (
-              <option value="">No models found</option>
-            ) : (
-              ollamaModels.map((m) => (
-                <option key={m} value={m}>
-                  {m.replace(':latest', '')}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-        <div className="button-group-vertical" style={{ marginTop: 12 }}>
-          <button
-            className="btn btn-secondary"
-            disabled={!ollamaOnline || !selectedModel || classifying}
-            onClick={onClassify}
-            title="Uses Ollama to guess if files are safe to delete based on name/path"
-          >
-            {classifying ? 'Classifying...' : 'Classify Current View'}
-          </button>
-          
-          <button
-            className="btn btn-primary"
-            disabled={!ollamaOnline || !selectedModel}
-            onClick={onGenerateReport}
-            title="Generate a personalized system health report"
-            style={{ 
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(52, 211, 153, 0.9))',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px'
-            }}
-          >
-            <Activity size={16} /> Generate Health Report
-          </button>
-            
-          <button
-            className="btn btn-secondary"
-            disabled={!ollamaOnline || !selectedModel}
-            onClick={onCleanMemory}
-            title="Unload the model from RAM explicitly"
-          >
-            Unload Model from Memory
-          </button>
-        </div>
-      </section>
-        <p className="hint">Classifies by name, size, path — no file content read</p>
+        {/* Conditional Onboarding or AI Controls */}
+        {ollamaOnline === false || (ollamaOnline === true && ollamaModels.length === 0) ? (
+          <OllamaOnboarding 
+            ollamaOnline={ollamaOnline} 
+            ollamaModels={ollamaModels} 
+            onCheckOllama={onCheckOllama} 
+          />
+        ) : (
+          <>
+            {/* LLM Controls */}
+            <div className="model-selector">
+              <label htmlFor="model-select">Model:</label>
+              <select
+                id="model-select"
+                value={selectedModel}
+                onChange={(e) => onModelChange(e.target.value)}
+                disabled={!ollamaOnline || ollamaModels.length === 0}
+              >
+                {ollamaModels.length === 0 ? (
+                  <option value="">No models found</option>
+                ) : (
+                  ollamaModels.map((m) => (
+                    <option key={m} value={m}>
+                      {m.replace(':latest', '')}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+            <div className="button-group-vertical" style={{ marginTop: 12 }}>
+              <button
+                className="btn btn-secondary"
+                disabled={!ollamaOnline || !selectedModel || classifying}
+                onClick={onClassify}
+                title="Uses Ollama to guess if files are safe to delete based on name/path"
+              >
+                {classifying ? 'Classifying...' : 'Classify Current View'}
+              </button>
+              
+              <button
+                className="btn btn-primary"
+                disabled={!ollamaOnline || !selectedModel}
+                onClick={onGenerateReport}
+                title="Generate a personalized system health report"
+                style={{ 
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(52, 211, 153, 0.9))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Activity size={16} /> Generate Health Report
+              </button>
+                
+              <button
+                className="btn btn-secondary"
+                disabled={!ollamaOnline || !selectedModel}
+                onClick={onCleanMemory}
+                title="Unload the model from RAM explicitly"
+              >
+                Unload Model from Memory
+              </button>
+            </div>
+            <p className="hint">Classifies by name, size, path — no file content read</p>
+          </>
+        )}
       </section>
 
       {/* View mode toggle */}

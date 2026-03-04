@@ -14,19 +14,12 @@
 
 ## 🚀 Getting Started
 
-To get started quickly, download the latest installer from our [Releases page](#). We build installers for **macOS**, **Windows**, and **Linux**.
+To get started quickly, download the latest installer from our [Releases page](https://github.com/Divish1032/junk-cleaner/releases). We build installers for **macOS**, **Windows**, and **Linux**.
 
-### Prerequisites for local AI Features
+### Local AI Features
 
-Junk Cleaner utilizes your local processing power. To use the AI features (Chat, Smart Classification, Health Reports), you must have **[Ollama](https://ollama.com/)** installed and running on your system with at least one model downloaded.
-
-```bash
-# Start Ollama API
-ollama serve
-
-# Download a fast reasoning model
-ollama run llama3.2:1b
-```
+Junk Cleaner utilizes your local processing power for its AI features (Chat, Smart Classification, Health Reports).
+The application includes a built-in onboarding experience that will guide you through installing and connecting to [Ollama](https://ollama.com/) seamlessly if you don't already have it!
 
 ## 🛠 Building from Source
 

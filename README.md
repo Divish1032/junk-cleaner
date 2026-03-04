@@ -30,12 +30,20 @@ To get started quickly, download the latest installer from our [Releases page](h
 
 _Note: Clicking the buttons above will take you to our latest GitHub release. Download the appropriate `.dmg` (Mac), `.exe` (Windows), or `.AppImage` (Linux) file for your machine._
 
-### ⚡ Automated CLI Install (macOS / Linux)
+### ⚡ Automated CLI Install
 
-For a lightning-fast install that automatically bypasses macOS Gatekeeper warnings, paste this into your terminal:
+For a lightning-fast install that automatically bypasses warnings, open your terminal (or PowerShell) and paste the command for your OS:
+
+**macOS & Linux (Terminal):**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Divish1032/junk-cleaner/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/Divish1032/junk-cleaner/main/install.ps1 | iex
 ```
 
 ### 🍏 macOS Installation Note

@@ -1,4 +1,3 @@
-import React from 'react';
 import { X, Activity } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 

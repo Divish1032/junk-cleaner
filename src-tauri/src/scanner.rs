@@ -29,6 +29,35 @@ pub struct ScanProgress {
     pub current_path: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Volume {
+    pub name: String,
+    pub mount_point: PathBuf,
+    pub available_bytes: u64,
+    pub total_bytes: u64,
+}
+
+pub fn get_disk_volumes() -> Vec<Volume> {
+    use sysinfo::Disks;
+
+    let disks = Disks::new_with_refreshed_list();
+    let mut volumes = Vec::new();
+
+    for disk in &disks {
+        volumes.push(Volume {
+            name: disk.name().to_string_lossy().to_string(),
+            mount_point: disk.mount_point().to_path_buf(),
+            available_bytes: disk.available_space(),
+            total_bytes: disk.total_space(),
+        });
+    }
+
+    // Sort so root is usually first or predictably ordered
+    volumes.sort_by(|a, b| a.mount_point.cmp(&b.mount_point));
+
+    volumes
+}
+
 /// Recursively scan a directory, returning a tree of FileNodes.
 /// Sizes are computed bottom-up in parallel. Nodes deeper than max_depth
 /// are not saved in the visual tree (memory footprint kept low).

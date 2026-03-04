@@ -1,6 +1,15 @@
 import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FileNode, DiskUsageResult, FileMeta, FileClassification, Volume } from '../types';
+import {
+  FileNode,
+  DiskUsageResult,
+  FileMeta,
+  FileClassification,
+  Volume,
+  AppUninstallerInfo,
+  DuplicateGroup,
+  IntentAction
+} from '../types';
 
 export function useScanner() {
   const [nodes, setNodes] = useState<FileNode[]>([]);
@@ -14,8 +23,10 @@ export function useScanner() {
   const [selectedModel, setSelectedModel] = useState('');
   const [knownJunk, setKnownJunk] = useState<FileNode[]>([]);
   const [volumes, setVolumes] = useState<Volume[]>([]);
+  const [appUninstallerResult, setAppUninstallerResult] = useState<AppUninstallerInfo | null>(null);
+  const [duplicateModels, setDuplicateModels] = useState<DuplicateGroup[]>([]);
 
-  const checkOllama = useCallback(async () => {
+  const checkOllama = useCallback(async (): Promise<boolean> => {
     try {
       const online = await invoke<boolean>('check_ollama');
       setOllamaOnline(online);
@@ -26,8 +37,10 @@ export function useScanner() {
           setSelectedModel(models[0]);
         }
       }
+      return online;
     } catch (e) {
       setOllamaOnline(false);
+      return false;
     }
   }, [selectedModel]);
 
@@ -66,6 +79,38 @@ export function useScanner() {
       setScanning(false);
     }
   }, [currentPath]);
+
+  const scanAppForUninstaller = useCallback(async (appPath: string) => {
+    setScanning(true);
+    setError(null);
+    setAppUninstallerResult(null);
+    try {
+      const result = await invoke<AppUninstallerInfo>('scan_app_for_uninstaller', { appPath });
+      setAppUninstallerResult(result);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setScanning(false);
+    }
+  }, []);
+
+  const scanModelDuplicates = useCallback(async () => {
+    setScanning(true);
+    setError(null);
+    setDuplicateModels([]);
+    try {
+      const result = await invoke<DuplicateGroup[]>('scan_model_duplicates');
+      setDuplicateModels(result);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setScanning(false);
+    }
+  }, []);
+
+  const clearAppUninstallerResult = useCallback(() => {
+    setAppUninstallerResult(null);
+  }, []);
 
   const classifyWithAI = useCallback(async (filesToClassify: FileNode[]) => {
     if (!selectedModel) return;
@@ -161,6 +206,48 @@ export function useScanner() {
     }
   }, [selectedModel]);
 
+  const parseUserIntent = async (prompt: string, model: string, url: string): Promise<IntentAction> => {
+    try {
+      const result: IntentAction = await invoke('parse_user_intent', {
+        prompt,
+        model,
+        ollamaUrl: url
+      });
+      return result;
+    } catch (err) {
+      console.error("Failed to parse intent:", err);
+      throw err;
+    }
+  };
+
+  const generateSystemReport = async (files: FileNode[], model: string, url: string): Promise<string> => {
+    try {
+      // Map nodes to the FileMeta structure expected by the backend
+      const topFiles: FileMeta[] = files.slice(0, 50).map((f) => {
+        const now = Math.floor(Date.now() / 1000);
+        const modifiedDaysAgo = f.modified ? Math.floor((now - f.modified) / 86400) : 0;
+        return {
+          name: f.name,
+          path: f.path,
+          size_bytes: f.size,
+          extension: f.extension,
+          is_dir: f.is_dir,
+          modified_days_ago: modifiedDaysAgo,
+        };
+      });
+
+      const report: string = await invoke('generate_system_report', {
+        files: topFiles,
+        model,
+        ollamaUrl: url
+      });
+      return report;
+    } catch (err) {
+      console.error("Failed to generate report:", err);
+      throw err;
+    }
+  };
+
   return {
     nodes,
     scanning,
@@ -174,10 +261,17 @@ export function useScanner() {
     setSelectedModel,
     knownJunk,
     volumes,
+    appUninstallerResult,
+    duplicateModels,
     checkOllama,
     loadVolumes,
     scanDirectory,
     scanKnownJunk,
+    scanAppForUninstaller,
+    scanModelDuplicates,
+    parseUserIntent,
+    generateSystemReport,
+    clearAppUninstallerResult,
     classifyWithAI,
     revealInExplorer,
     getHomeDir,

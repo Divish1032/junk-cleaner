@@ -49,5 +49,26 @@ export interface Volume {
   path: string;
 }
 
+export interface AppUninstallerInfo {
+  app_path: string;
+  bundle_id: string;
+  app_name: string;
+  related_files: FileNode[];
+  total_size: number;
+}
+
+export interface DuplicateGroup {
+  original: FileNode;
+  duplicates: FileNode[];
+  potential_savings: number;
+}
+
+export interface IntentAction {
+  action: string;
+  confidence: number;
+  path?: string;
+  message?: string;
+}
+
 export type SortKey = "size" | "name" | "modified";
-export type ViewMode = "tree" | "junk";
+export type ViewMode = "tree" | "junk" | "duplicates" | "chat";

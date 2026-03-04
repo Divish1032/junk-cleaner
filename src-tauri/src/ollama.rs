@@ -83,22 +83,25 @@ fn build_prompt(files: &[FileMeta]) -> String {
     }
 
     format!(
-        r#"You are a disk cleanup assistant. Analyze each file/folder based only on its metadata (name, type, size, path, extension, and last modified date). Never read file content - this is metadata only.
+        r#"You are an expert macOS system optimization assistant analyzing local file metadata to determine if files are safe to delete (junk) or if they are important. You MUST be extremely cautious.
+        
+Analyze each file based ONLY on its metadata (name, type, size, path, extension, and last modified date). 
 
 For each item, determine if it is:
-- "junk": Safe to delete (temp files, build artifacts, caches, old downloads, system metadata, empty files, log files, etc.)  
-- "important": Keep this (source code, documents, media the user created, config files, etc.)
-- "unknown": Cannot determine from metadata alone
+- "junk": Safe to delete. Examples: npm temporary cache directories (`.npm/_cacache`), macOS system logs (`/var/log/**/*.log`), application caches (`~/Library/Caches/**`), old installation DMG files, temporary Xcode build directories (`DerivedData`).
+- "important": Keep this. DO NOT suggest deleting source code (`.ts`, `.rs`, `.py`), user documents, application binaries (`.app`, `.exe`), irreplaceable configuration files (`.json`, `.toml`), or anything inside user-created project folders unless it's a known build output folder like `node_modules` or `target` that can be easily regenerated.
+- "unknown": Cannot determine from metadata alone or if you are not 100% sure. Erring on the side of caution is mandatory.
 
-Respond with ONLY a valid JSON array, no other text:
+Respond with ONLY a valid JSON array matching this schema exactly, and no other text or explanation:
 [
-  {{"path": "/example/path", "classification": "junk", "confidence": 0.9, "reason": "npm dependency directory, regeneratable"}},
+  {{"path": "/absolute/path/to/file", "classification": "junk", "confidence": 0.95, "reason": "macOS user cache directory, regeneratable"}},
+  {{"path": "/absolute/path/to/project/main.rs", "classification": "important", "confidence": 0.99, "reason": "Rust source code file"}},
   ...
 ]
 
 Files to analyze:
 {}
-Return JSON array only."#,
+Return ONLY the JSON array."#,
         file_list
     )
 }
@@ -232,5 +235,142 @@ pub async fn unload_model(model: String, ollama_url: &str) -> Result<(), String>
     match client.post(&url).json(&request).send().await {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("Failed to unload model: {}", e)),
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IntentAction {
+    pub action: String,
+    pub confidence: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+/// Call Ollama to parse natural language user intent.
+pub async fn parse_intent(
+    prompt: &str,
+    model: String,
+    ollama_url: String,
+) -> Result<IntentAction, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to build client: {}", e))?;
+
+    let system_prompt = r#"You are a MacOS System Assistant. The user will give you a natural language command. Parse their intent and output a strict JSON object representing the action to take.
+    
+Allowed actions:
+- "scan_junk": When the user asks to clean cache, junk, temporary files, build artifacts.
+- "scan_model_duplicates": When the user asks to find duplicate models, weights, gguf, or safetensors.
+- "scan_large_files": When the user asks to find large files. If they specify a path (like generic Downloads or Documents), you may provide a path, otherwise omit it.
+- "unknown": When you do not understand the command or it's unrelated to cleaning the system. Provide a polite 'message' back to the user explaining what you can do.
+
+Respond with ONLY a valid JSON object matching this description and nothing else.
+Example 1: {"action": "scan_junk", "confidence": 0.95}
+Example 2: {"action": "scan_model_duplicates", "confidence": 0.88}
+Example 3: {"action": "unknown", "confidence": 1.0, "message": "I'm sorry, I can only help with system cleaning and finding large/duplicate files."}"#;
+
+    let full_prompt = format!(
+        "{}\n\nUser command: {}\nReturn JSON only.",
+        system_prompt, prompt
+    );
+
+    let request = OllamaRequest {
+        model,
+        prompt: full_prompt,
+        stream: false,
+        format: "json".to_string(),
+        keep_alive: None,
+    };
+
+    let url = format!("{}/api/generate", ollama_url);
+
+    match client.post(&url).json(&request).send().await {
+        Ok(response) => match response.json::<OllamaResponse>().await {
+            Ok(ollama_resp) => {
+                let text = ollama_resp.response.trim();
+                match serde_json::from_str::<IntentAction>(text) {
+                    Ok(intent) => Ok(intent),
+                    Err(e) => Err(format!("Failed to parse LLM JSON: {}. Raw: {}", e, text)),
+                }
+            }
+            Err(e) => Err(format!("Failed to read response: {}", e)),
+        },
+        Err(e) => Err(format!("Network error: {}", e)),
+    }
+}
+
+/// Call Ollama to generate a personalized system report based on scanned files and volumes.
+pub async fn generate_system_report(
+    files: Vec<FileMeta>,
+    volumes: Vec<crate::scanner::Volume>,
+    model: String,
+    ollama_url: String,
+) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60)) // Allow more time for generation
+        .build()
+        .map_err(|e| format!("Failed to build client: {}", e))?;
+
+    let mut volume_info = String::new();
+    for v in volumes {
+        let pct_used = if v.total_bytes > 0 {
+            let used = v.total_bytes.saturating_sub(v.available_bytes);
+            (used as f64 / v.total_bytes as f64) * 100.0
+        } else {
+            0.0
+        };
+        volume_info.push_str(&format!(
+            "- Mount: {}, Total: {}, Available: {}, Used: {:.1}%\n",
+            v.mount_point.display(),
+            format_size(v.total_bytes),
+            format_size(v.available_bytes),
+            pct_used
+        ));
+    }
+
+    let mut file_info = String::new();
+    for (i, f) in files.iter().enumerate().take(50) {
+        file_info.push_str(&format!(
+            "{}. {} ({}) - {}\n",
+            i + 1,
+            f.name,
+            format_size(f.size_bytes),
+            if f.is_dir { "Directory" } else { "File" }
+        ));
+    }
+
+    let system_prompt = r#"You are a MacOS System Assistant built into a Junk Cleaner app. 
+Your task is to analyze the provided disk volumes and a sample of the largest files/directories to generate a personalized health report.
+Write a concise, friendly, and helpful 1-2 paragraph natural language summary. 
+Include:
+1. An overall assessment of disk space.
+2. Observations about the largest files or folders (e.g., node_modules, caches, videos).
+3. A recommendation on what to clean up.
+Output purely Markdown text, ready to be displayed to the user."#;
+
+    let full_prompt = format!(
+        "{}\n\nDisk Volumes:\n{}\nTop Files/Directories:\n{}",
+        system_prompt, volume_info, file_info
+    );
+
+    let request = OllamaRequest {
+        model,
+        prompt: full_prompt,
+        stream: false,
+        format: "".to_string(), // Text generation, not JSON
+        keep_alive: None,
+    };
+
+    let url = format!("{}/api/generate", ollama_url);
+
+    match client.post(&url).json(&request).send().await {
+        Ok(response) => match response.json::<OllamaResponse>().await {
+            Ok(ollama_resp) => Ok(ollama_resp.response.trim().to_string()),
+            Err(e) => Err(format!("Failed to read response: {}", e)),
+        },
+        Err(e) => Err(format!("Network error: {}", e)),
     }
 }

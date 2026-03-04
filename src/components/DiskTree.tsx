@@ -7,6 +7,7 @@ interface FileRowProps {
   maxSize: number;
   depth?: number;
   onReveal: (path: string) => void;
+  onScanApp?: (path: string) => void;
 }
 
 export function formatSize(bytes: number): string {
@@ -64,7 +65,7 @@ function ClassificationBadge({ node }: { node: FileNode }) {
   return null;
 }
 
-export function FileRow({ node, maxSize, depth = 0, onReveal }: FileRowProps) {
+export function FileRow({ node, maxSize, depth = 0, onReveal, onScanApp }: FileRowProps) {
   const [expanded, setExpanded] = React.useState(false);
   const pct = maxSize > 0 ? Math.max(node.size / maxSize, 0.003) : 0;
   const barColor = getBarColor(node);
@@ -142,6 +143,21 @@ export function FileRow({ node, maxSize, depth = 0, onReveal }: FileRowProps) {
         >
           <ExternalLink size={14} />
         </button>
+
+        {/* Scan App for Uninstaller Button (if macOS .app) */}
+        {node.is_dir && node.name.endsWith('.app') && onScanApp && (
+          <button
+            className="reveal-btn"
+            title="Scan for Leftover App Files"
+            style={{ marginLeft: 4, color: '#ef4444' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onScanApp(node.path);
+            }}
+          >
+            <Trash2 size={14} />
+          </button>
+        )}
       </div>
 
       {/* Children */}
@@ -154,6 +170,7 @@ export function FileRow({ node, maxSize, depth = 0, onReveal }: FileRowProps) {
               maxSize={childMaxSize}
               depth={depth + 1}
               onReveal={onReveal}
+              onScanApp={onScanApp}
             />
           ))}
         </div>
@@ -165,9 +182,10 @@ export function FileRow({ node, maxSize, depth = 0, onReveal }: FileRowProps) {
 interface DiskTreeProps {
   nodes: FileNode[];
   onReveal: (path: string) => void;
+  onScanApp?: (path: string) => void;
 }
 
-export function DiskTree({ nodes, onReveal }: DiskTreeProps) {
+export function DiskTree({ nodes, onReveal, onScanApp }: DiskTreeProps) {
   const maxSize = nodes.length > 0 ? Math.max(...nodes.map((n) => n.size)) : 1;
 
   if (nodes.length === 0) {
@@ -190,7 +208,7 @@ export function DiskTree({ nodes, onReveal }: DiskTreeProps) {
         <span className="col-action" />
       </div>
       {nodes.map((node) => (
-        <FileRow key={node.path} node={node} maxSize={maxSize} onReveal={onReveal} />
+        <FileRow key={node.path} node={node} maxSize={maxSize} onReveal={onReveal} onScanApp={onScanApp} />
       ))}
     </div>
   );

@@ -1,4 +1,3 @@
-import React from 'react';
 import { FileNode } from '../types';
 import { formatSize, formatDate } from './DiskTree';
 import { ExternalLink, Trash2, AlertTriangle } from 'lucide-react';

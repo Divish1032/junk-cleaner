@@ -13,6 +13,9 @@ import {
   WifiOff,
   Home,
   AlertCircle,
+  Copy,
+  Sparkles,
+  Activity,
 } from 'lucide-react';
 
 interface ScanPanelProps {
@@ -20,7 +23,9 @@ interface ScanPanelProps {
   onViewModeChange: (mode: ViewMode) => void;
   onScan: (path: string) => void;
   onScanKnownJunk: () => void;
+  onScanModelDuplicates: () => void;
   onClassify: () => void;
+  onGenerateReport: () => void;
   scanning: boolean;
   classifying: boolean;
   ollamaOnline: boolean | null;
@@ -50,7 +55,9 @@ export function ScanPanel({
   onViewModeChange,
   onScan,
   onScanKnownJunk,
+  onScanModelDuplicates,
   onClassify,
+  onGenerateReport,
   scanning,
   classifying,
   ollamaOnline,
@@ -221,46 +228,64 @@ export function ScanPanel({
           </button>
         </div>
 
-        {ollamaOnline && ollamaModels.length > 0 && (
-          <div className="model-select-wrap">
-            <Cpu size={13} />
-            <select
-              className="model-select"
-              value={selectedModel}
-              onChange={(e) => onModelChange(e.target.value)}
-            >
-              {ollamaModels.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {ollamaOnline === false && (
-          <p className="hint warning">
-            Start Ollama: <code>ollama serve</code>
-          </p>
-        )}
-
-        <div className="btn-group">
-          <button
-            className="btn btn-ai"
-            onClick={onClassify}
-            disabled={!ollamaOnline || classifying || nodeCount === 0}
-            style={{ flex: 1 }}
+      {/* LLM Controls */}
+      <section className="panel-section">
+        <h3>AI Assistant</h3>
+        <div className="model-selector">
+          <label htmlFor="model-select">Model:</label>
+          <select
+            id="model-select"
+            value={selectedModel}
+            onChange={(e) => onModelChange(e.target.value)}
+            disabled={!ollamaOnline || ollamaModels.length === 0}
           >
-            {classifying ? (
-              <><RefreshCw size={14} className="spin" /> Analyzing…</>
+            {ollamaModels.length === 0 ? (
+              <option value="">No models found</option>
             ) : (
-              <><Brain size={14} /> Analyze with AI</>
+              ollamaModels.map((m) => (
+                <option key={m} value={m}>
+                  {m.replace(':latest', '')}
+                </option>
+              ))
             )}
-          </button>
-          {ollamaOnline && !classifying && (
-            <button className="icon-btn" onClick={onCleanMemory} title="Free LLM Memory">
-              <Cpu size={14} />
-            </button>
-          )}
+          </select>
         </div>
+        <div className="button-group-vertical" style={{ marginTop: 12 }}>
+          <button
+            className="btn btn-secondary"
+            disabled={!ollamaOnline || !selectedModel || classifying}
+            onClick={onClassify}
+            title="Uses Ollama to guess if files are safe to delete based on name/path"
+          >
+            {classifying ? 'Classifying...' : 'Classify Current View'}
+          </button>
+          
+          <button
+            className="btn btn-primary"
+            disabled={!ollamaOnline || !selectedModel}
+            onClick={onGenerateReport}
+            title="Generate a personalized system health report"
+            style={{ 
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(52, 211, 153, 0.9))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px'
+            }}
+          >
+            <Activity size={16} /> Generate Health Report
+          </button>
+            
+          <button
+            className="btn btn-secondary"
+            disabled={!ollamaOnline || !selectedModel}
+            onClick={onCleanMemory}
+            title="Unload the model from RAM explicitly"
+          >
+            Unload Model from Memory
+          </button>
+        </div>
+      </section>
         <p className="hint">Classifies by name, size, path — no file content read</p>
       </section>
 
@@ -279,6 +304,21 @@ export function ScanPanel({
             onClick={() => onViewModeChange('junk')}
           >
             <Trash2 size={14} /> Junk Only
+          </button>
+          <button
+            className={`toggle-btn ${viewMode === 'duplicates' ? 'active' : ''}`}
+            onClick={() => {
+              onViewModeChange('duplicates');
+              onScanModelDuplicates();
+            }}
+          >
+            <Copy size={14} /> Duplicates
+          </button>
+          <button
+            className={`toggle-btn ${viewMode === 'chat' ? 'active' : ''}`}
+            onClick={() => onViewModeChange('chat')}
+          >
+            <Sparkles size={14} /> Copilot Chat
           </button>
         </div>
       </section>

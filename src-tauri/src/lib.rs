@@ -1,10 +1,14 @@
 mod junk_catalog;
+mod model_dedup;
 mod ollama;
 mod scanner;
+mod uninstaller;
 
 use junk_catalog::{classify_by_catalog, get_junk_catalog, JunkEntry};
+use model_dedup::DuplicateGroup;
 use ollama::{
     check_ollama_health, classify_files, list_ollama_models, FileClassification, FileMeta,
+    IntentAction,
 };
 use scanner::FileNode;
 use serde::{Deserialize, Serialize};
@@ -257,45 +261,63 @@ fn get_home_dir() -> String {
 
 /// Get disk volumes/drives available on this system.
 #[tauri::command]
-fn get_volumes() -> Vec<serde_json::Value> {
-    #[cfg(target_os = "macos")]
-    {
-        let volumes_dir = std::path::Path::new("/Volumes");
-        if let Ok(rd) = std::fs::read_dir(volumes_dir) {
-            return rd
-                .filter_map(|e| e.ok())
-                .map(|e| {
-                    let path = e.path().to_string_lossy().to_string();
-                    let name = e.file_name().to_string_lossy().to_string();
-                    serde_json::json!({ "name": name, "path": path })
-                })
-                .collect();
+fn get_volumes() -> Vec<scanner::Volume> {
+    scanner::get_disk_volumes()
+}
+
+#[tauri::command]
+async fn scan_model_duplicates() -> Result<Vec<DuplicateGroup>, String> {
+    // Determine standard model locations
+    let mut search_paths = vec![];
+
+    // Add common Ollama model dir
+    if let Some(home) = dirs::home_dir() {
+        let ollama_models = home.join(".ollama").join("models");
+        if ollama_models.exists() {
+            search_paths.push(ollama_models);
         }
-        // Fallback: root
-        vec![
-            serde_json::json!({ "name": "Macintosh HD", "path": "/" }),
-            serde_json::json!({ "name": "Home", "path": dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or("/".to_string()) }),
-        ]
+
+        let lm_studio_models = home.join(".cache").join("lm-studio").join("models");
+        if lm_studio_models.exists() {
+            search_paths.push(lm_studio_models);
+        }
     }
-    #[cfg(target_os = "windows")]
-    {
-        // Scan drive letters A-Z
-        (b'A'..=b'Z')
-            .map(|c| format!("{}:\\", c as char))
-            .filter(|p| std::path::Path::new(p).exists())
-            .map(|p| {
-                let letter = p.chars().next().unwrap_or('C');
-                serde_json::json!({ "name": format!("Drive ({}:)", letter), "path": p })
-            })
-            .collect()
-    }
-    #[cfg(target_os = "linux")]
-    {
-        vec![
-            serde_json::json!({ "name": "Root (/)", "path": "/" }),
-            serde_json::json!({ "name": "Home", "path": dirs::home_dir().map(|p| p.to_string_lossy().to_string()).unwrap_or("/home".to_string()) }),
-        ]
-    }
+
+    // Optionally scan the root if user wants a deep scan (could take long)
+    // For now we'll stick to common model directories to keep it fast and safe.
+    // In a real app we'd let the user select paths.
+
+    let res =
+        tokio::task::spawn_blocking(move || model_dedup::find_model_duplicates(&search_paths))
+            .await
+            .map_err(|e| e.to_string())?;
+
+    Ok(res?)
+}
+
+#[tauri::command]
+async fn unload_ollama_model(model: String, ollama_url: String) -> Result<(), String> {
+    ollama::unload_model(model, &ollama_url).await
+}
+
+#[tauri::command]
+async fn parse_user_intent(
+    prompt: String,
+    model: String,
+    ollama_url: String,
+) -> Result<IntentAction, String> {
+    ollama::parse_intent(&prompt, model, ollama_url).await
+}
+
+#[tauri::command]
+async fn generate_system_report(
+    files: Vec<FileMeta>,
+    model: String,
+    ollama_url: String,
+) -> Result<String, String> {
+    // Generate volume info inside the backend
+    let vols = scanner::get_disk_volumes();
+    ollama::generate_system_report(files, vols, model, ollama_url).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -319,6 +341,11 @@ pub fn run() {
             get_volumes,
             cancel_scan,
             clean_ollama_memory,
+            uninstaller::scan_app_for_uninstaller,
+            scan_model_duplicates,
+            unload_ollama_model,
+            parse_user_intent,
+            generate_system_report,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

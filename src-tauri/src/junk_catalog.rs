@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "windows")]
+use std::env;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct JunkEntry {
     pub path: String,

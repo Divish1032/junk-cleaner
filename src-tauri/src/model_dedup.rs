@@ -4,7 +4,6 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Read};
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,8 +84,18 @@ fn scan_for_models(dir: &Path, results: &mut Vec<FileNode>) {
                                 path: path.to_string_lossy().to_string(),
                                 size: metadata.len(),
                                 is_dir: false,
-                                created: metadata.ctime() as u64,
-                                modified: metadata.mtime() as u64,
+                                created: metadata
+                                    .created()
+                                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs(),
+                                modified: metadata
+                                    .modified()
+                                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_secs(),
                                 children: vec![],
                                 children_count: 0,
                                 extension: ext.to_string(),

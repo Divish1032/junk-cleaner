@@ -287,7 +287,14 @@ function App() {
             </button>
             <button
               className={`tab-btn tab-btn--dev ${viewMode === 'dev' ? 'active' : ''}`}
-              onClick={() => !isOllamaBusy && handleScanDevArtifacts()}
+              onClick={() => {
+                if (isOllamaBusy) return;
+                if (devArtifacts.length > 0 || scanningDev) {
+                  setViewMode('dev');
+                } else {
+                  handleScanDevArtifacts();
+                }
+              }}
               disabled={isOllamaBusy}
               title={isOllamaBusy ? 'AI is processing — please wait' : 'Find regeneratable dev folders: node_modules, target, .venv, etc.'}
             >

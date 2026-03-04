@@ -14,7 +14,21 @@
 
 ## 🚀 Getting Started
 
-To get started quickly, download the latest installer from our [Releases page](https://github.com/Divish1032/junk-cleaner/releases). We build installers for **macOS**, **Windows**, and **Linux**.
+To get started quickly, download the latest installer from our [Releases page](https://github.com/Divish1032/junk-cleaner/releases/latest). We build native installers for **macOS**, **Windows**, and **Linux**.
+
+<p align="center">
+  <a href="https://github.com/Divish1032/junk-cleaner/releases/latest">
+    <img src="https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" />
+  </a>
+  <a href="https://github.com/Divish1032/junk-cleaner/releases/latest">
+    <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
+  </a>
+  <a href="https://github.com/Divish1032/junk-cleaner/releases/latest">
+    <img src="https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux" />
+  </a>
+</p>
+
+_Note: Clicking the buttons above will take you to our latest GitHub release. Download the appropriate `.dmg` (Mac), `.exe` (Windows), or `.AppImage` (Linux) file for your machine._
 
 ### Local AI Features
 

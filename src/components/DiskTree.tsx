@@ -1,6 +1,7 @@
 import React from 'react';
 import { FileNode } from '../types';
-import { FolderOpen, File, ExternalLink, Trash2, Shield, HelpCircle, ChevronRight, ChevronDown } from 'lucide-react';
+import { FolderOpen, File, ExternalLink, Trash2, Shield, HelpCircle, ChevronRight, ChevronDown, Clipboard, MessageSquare } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 interface FileRowProps {
   node: FileNode;
@@ -8,6 +9,7 @@ interface FileRowProps {
   depth?: number;
   onReveal: (path: string) => void;
   onScanApp?: (path: string) => void;
+  onAskAI?: (path: string, node: FileNode) => void;
 }
 
 export function formatSize(bytes: number): string {
@@ -56,6 +58,9 @@ function ClassificationBadge({ node }: { node: FileNode }) {
     );
   }
   if (node.ai_classification === 'unknown') {
+    // Only show the Unknown badge if classification ran with real confidence.
+    // confidence === 0 means the fallback fired (Ollama response couldn't be parsed) — don't spam the UI with it.
+    if (!node.ai_confidence || node.ai_confidence === 0) return null;
     return (
       <span className="badge badge-unknown" title={node.ai_reason}>
         <HelpCircle size={10} /> Unknown
@@ -65,7 +70,7 @@ function ClassificationBadge({ node }: { node: FileNode }) {
   return null;
 }
 
-export function FileRow({ node, maxSize, depth = 0, onReveal, onScanApp }: FileRowProps) {
+export function FileRow({ node, maxSize, depth = 0, onReveal, onScanApp, onAskAI }: FileRowProps) {
   const [expanded, setExpanded] = React.useState(false);
   const pct = maxSize > 0 ? Math.max(node.size / maxSize, 0.003) : 0;
   const barColor = getBarColor(node);
@@ -73,6 +78,22 @@ export function FileRow({ node, maxSize, depth = 0, onReveal, onScanApp }: FileR
   const childMaxSize = hasChildren
     ? Math.max(...node.children.map((c) => c.size))
     : 0;
+
+  const handleCopyPath = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(node.path).then(() => {
+      toast.success('Path copied to clipboard!', { duration: 2000 });
+    }).catch(() => {
+      toast.error('Failed to copy path.');
+    });
+  };
+
+  const handleAskAI = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onAskAI) {
+      onAskAI(node.path, node);
+    }
+  };
 
   return (
     <>
@@ -135,29 +156,53 @@ export function FileRow({ node, maxSize, depth = 0, onReveal, onScanApp }: FileR
         {/* Modified date */}
         <span className="file-date">{formatDate(node.modified)}</span>
 
-        {/* Open in Finder button */}
-        <button
-          className="reveal-btn"
-          title="Open in Finder / Explorer"
-          onClick={() => onReveal(node.path)}
-        >
-          <ExternalLink size={14} />
-        </button>
-
-        {/* Scan App for Uninstaller Button (if macOS .app) */}
-        {node.is_dir && node.name.endsWith('.app') && onScanApp && (
+        {/* Row actions */}
+        <div className="row-actions">
+          {/* Copy absolute path */}
           <button
             className="reveal-btn"
-            title="Scan for Leftover App Files"
-            style={{ marginLeft: 4, color: '#ef4444' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onScanApp(node.path);
-            }}
+            title="Copy absolute path"
+            onClick={handleCopyPath}
           >
-            <Trash2 size={14} />
+            <Clipboard size={13} />
           </button>
-        )}
+
+          {/* Ask AI about this item (read-only, metadata only) */}
+          {onAskAI && (
+            <button
+              className="reveal-btn"
+              title="Ask AI about this item (read-only)"
+              onClick={handleAskAI}
+              style={{ color: '#818cf8' }}
+            >
+              <MessageSquare size={13} />
+            </button>
+          )}
+
+          {/* Open in Finder button */}
+          <button
+            className="reveal-btn"
+            title="Open in Finder / Explorer"
+            onClick={(e) => { e.stopPropagation(); onReveal(node.path); }}
+          >
+            <ExternalLink size={13} />
+          </button>
+
+          {/* Scan App for Uninstaller Button (if macOS .app) */}
+          {node.is_dir && node.name.endsWith('.app') && onScanApp && (
+            <button
+              className="reveal-btn"
+              title="Scan for Leftover App Files"
+              style={{ color: '#ef4444' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onScanApp(node.path);
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Children */}
@@ -171,6 +216,7 @@ export function FileRow({ node, maxSize, depth = 0, onReveal, onScanApp }: FileR
               depth={depth + 1}
               onReveal={onReveal}
               onScanApp={onScanApp}
+              onAskAI={onAskAI}
             />
           ))}
         </div>
@@ -183,9 +229,10 @@ interface DiskTreeProps {
   nodes: FileNode[];
   onReveal: (path: string) => void;
   onScanApp?: (path: string) => void;
+  onAskAI?: (path: string, node: FileNode) => void;
 }
 
-export function DiskTree({ nodes, onReveal, onScanApp }: DiskTreeProps) {
+export function DiskTree({ nodes, onReveal, onScanApp, onAskAI }: DiskTreeProps) {
   const maxSize = nodes.length > 0 ? Math.max(...nodes.map((n) => n.size)) : 1;
 
   if (nodes.length === 0) {
@@ -205,10 +252,10 @@ export function DiskTree({ nodes, onReveal, onScanApp }: DiskTreeProps) {
         <span className="col-bar">Usage</span>
         <span className="col-size">Size</span>
         <span className="col-date">Modified</span>
-        <span className="col-action" />
+        <span className="col-action" style={{ minWidth: '88px' }} />
       </div>
       {nodes.map((node) => (
-        <FileRow key={node.path} node={node} maxSize={maxSize} onReveal={onReveal} onScanApp={onScanApp} />
+        <FileRow key={node.path} node={node} maxSize={maxSize} onReveal={onReveal} onScanApp={onScanApp} onAskAI={onAskAI} />
       ))}
     </div>
   );

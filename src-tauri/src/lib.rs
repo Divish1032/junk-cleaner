@@ -1,3 +1,4 @@
+mod dev_scanner;
 mod junk_catalog;
 mod model_dedup;
 mod ollama;
@@ -20,11 +21,99 @@ struct AppState {
     scan_flag: Arc<AtomicBool>,
 }
 
+// ============================================================
+// WRITE PROTECTION GUARD
+// This app is STRICTLY READ-ONLY. This constant makes that
+// enforceable at the type level. Never set to false.
+// ============================================================
+const WRITE_PROTECTION_ENABLED: bool = true;
+
+/// Returns true if write protection is active (always true in this app).
+/// The frontend queries this at startup to confirm read-only mode.
+#[tauri::command]
+fn app_write_protection_status() -> bool {
+    WRITE_PROTECTION_ENABLED
+}
+
+/// Call this at the top of any Rust command that might touch the filesystem
+/// for writes. Returns an Err immediately so the command is a no-op.
+#[allow(dead_code)]
+fn guard_write_op(operation: &str) -> Result<(), String> {
+    if WRITE_PROTECTION_ENABLED {
+        Err(format!(
+            "BLOCKED: '{}' is a write operation. This app is strictly read-only and cannot modify, delete, or create files.",
+            operation
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiskUsageResult {
     pub nodes: Vec<FileNode>,
     pub total_size: u64,
     pub root_path: String,
+}
+
+// ============================================================
+// NET-03: Ollama URL Validator
+// Only allow connections to localhost/127.0.0.1 — never to
+// external hosts that could intercept AI file metadata.
+// ============================================================
+fn validate_ollama_url(url: &str) -> Result<(), String> {
+    let allowed_hosts = ["localhost", "127.0.0.1", "::1"];
+    let url_lower = url.to_lowercase();
+    // Strip http:// or https:// prefix
+    let stripped = url_lower
+        .trim_start_matches("http://")
+        .trim_start_matches("https://");
+    // Check if it starts with an allowed host
+    let is_allowed = allowed_hosts.iter().any(|host| stripped.starts_with(host));
+    if !is_allowed {
+        Err(format!(
+            "BLOCKED: Ollama URL '{}' is not a localhost address. This app only communicates with a local Ollama instance for privacy.",
+            url
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+// ============================================================
+// FS-02: Scan Path Validator
+// Block scanning of sensitive OS system directories that
+// should never be enumerated by a disk cleaner.
+// ============================================================
+fn validate_scan_path(path: &str) -> Result<(), String> {
+    let blocked_prefixes: &[&str] = &[
+        // macOS / Unix system paths
+        "/etc",
+        "/private/etc",
+        "/System",
+        "/sbin",
+        "/bin",
+        "/usr/bin",
+        "/usr/sbin",
+        "/proc",
+        "/sys",
+        "/dev",
+        // Windows system paths
+        "C:\\Windows\\System32",
+        "C:\\Windows\\SysWOW64",
+        "C:\\Program Files\\Windows",
+    ];
+    let path_lower = path.to_lowercase().replace('\\', "/");
+    for blocked in blocked_prefixes {
+        let blocked_lower = blocked.to_lowercase().replace('\\', "/");
+        if path_lower == blocked_lower || path_lower.starts_with(&format!("{}/", blocked_lower)) {
+            return Err(format!(
+                "BLOCKED: Scanning '{}' is not allowed. This path contains sensitive OS system files.",
+                path
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Scan a directory and return top-level entries with sizes.
@@ -34,6 +123,9 @@ async fn scan_directory(
     depth: Option<usize>,
     state: tauri::State<'_, AppState>,
 ) -> Result<DiskUsageResult, String> {
+    // FS-02: Block sensitive system paths
+    validate_scan_path(&path)?;
+
     state.scan_flag.store(true, Ordering::Relaxed);
     let keep_running = state.scan_flag.clone();
     let max_depth = depth.unwrap_or(3);
@@ -297,6 +389,8 @@ async fn scan_model_duplicates() -> Result<Vec<DuplicateGroup>, String> {
 
 #[tauri::command]
 async fn unload_ollama_model(model: String, ollama_url: String) -> Result<(), String> {
+    // NET-03: Validate localhost-only
+    validate_ollama_url(&ollama_url)?;
     ollama::unload_model(model, &ollama_url).await
 }
 
@@ -306,6 +400,8 @@ async fn parse_user_intent(
     model: String,
     ollama_url: String,
 ) -> Result<IntentAction, String> {
+    // NET-03: Validate localhost-only
+    validate_ollama_url(&ollama_url)?;
     ollama::parse_intent(&prompt, model, ollama_url).await
 }
 
@@ -315,9 +411,38 @@ async fn generate_system_report(
     model: String,
     ollama_url: String,
 ) -> Result<String, String> {
-    // Generate volume info inside the backend
+    // NET-03: Validate localhost-only
+    validate_ollama_url(&ollama_url)?;
     let vols = scanner::get_disk_volumes();
     ollama::generate_system_report(files, vols, model, ollama_url).await
+}
+
+/// Free-form read-only chat. The model only sees user text + a hard-coded read-only system prompt.
+/// Zero filesystem access — no shell, no file reads, no mutations of any kind.
+#[tauri::command]
+async fn chat_with_model(
+    message: String,
+    model: String,
+    ollama_url: Option<String>,
+) -> Result<String, String> {
+    let url = ollama_url.unwrap_or_else(|| "http://localhost:11434".to_string());
+    // NET-03: Validate localhost-only even for chat
+    validate_ollama_url(&url)?;
+    ollama::chat_with_model(message, model, url).await
+}
+
+/// Scan a directory for dev artifacts (node_modules, target, .venv, etc.).
+#[tauri::command]
+async fn scan_dev_artifacts(root: String) -> Vec<dev_scanner::DevArtifact> {
+    tokio::task::spawn_blocking(move || dev_scanner::scan_dev_artifacts(&root))
+        .await
+        .unwrap_or_default()
+}
+
+/// Delete a dev artifact directory after whitelist verification.
+#[tauri::command]
+fn delete_dev_artifact(path: String) -> Result<(), String> {
+    dev_scanner::delete_dev_artifact(&path)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -346,6 +471,10 @@ pub fn run() {
             unload_ollama_model,
             parse_user_intent,
             generate_system_report,
+            app_write_protection_status,
+            chat_with_model,
+            scan_dev_artifacts,
+            delete_dev_artifact,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

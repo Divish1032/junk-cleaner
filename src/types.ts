@@ -71,4 +71,17 @@ export interface IntentAction {
 }
 
 export type SortKey = "size" | "name" | "modified";
-export type ViewMode = "tree" | "junk" | "duplicates" | "chat";
+export type ViewMode = "tree" | "junk" | "duplicates" | "chat" | "dev";
+
+export interface DevArtifact {
+  path: string;
+  artifact_name: string;
+  ecosystem: string;
+  description: string;
+  regen_command: string;
+  size_bytes: number;
+  project_root: string;
+  project_name: string;
+  /** Added on the frontend after user marks for deletion */
+  selected?: boolean;
+}

@@ -38,14 +38,29 @@ pub struct Volume {
 }
 
 pub fn get_disk_volumes() -> Vec<Volume> {
+    use std::collections::HashSet;
     use sysinfo::Disks;
 
     let disks = Disks::new_with_refreshed_list();
     let mut volumes = Vec::new();
+    let mut seen_names = HashSet::new();
 
-    for disk in &disks {
+    // Sort disks by mount point length so we process '/' before '/System/...'
+    let mut disk_list: Vec<_> = disks.iter().collect();
+    disk_list.sort_by_key(|d| d.mount_point().as_os_str().len());
+
+    for disk in disk_list {
+        let name = disk.name().to_string_lossy().to_string();
+
+        // Skip duplicate names, or empty names
+        if name.is_empty() || seen_names.contains(&name) {
+            continue;
+        }
+
+        seen_names.insert(name.clone());
+
         volumes.push(Volume {
-            name: disk.name().to_string_lossy().to_string(),
+            name,
             mount_point: disk.mount_point().to_path_buf(),
             available_bytes: disk.available_space(),
             total_bytes: disk.total_space(),

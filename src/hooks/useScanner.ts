@@ -11,6 +11,27 @@ import {
   IntentAction
 } from '../types';
 
+// PRIV-03: Strip raw Rust/OS error details that could expose sensitive filesystem paths.
+// Maps known error patterns to user-friendly messages.
+function sanitizeError(e: unknown): string {
+  const raw = String(e);
+  // Surface our own BLOCKED messages verbatim (they are purposely user-facing)
+  if (raw.includes('BLOCKED:')) return raw.replace(/^.*BLOCKED:/, '⛔ Blocked:').trim();
+  // Permission denied — don't expose the exact path
+  if (raw.toLowerCase().includes('permission denied')) {
+    return 'Access denied: you do not have permission to read this location.';
+  }
+  // No such file
+  if (raw.toLowerCase().includes('no such file') || raw.toLowerCase().includes('not found')) {
+    return 'Path not found. It may have been moved or deleted.';
+  }
+  // Generic catch-all — truncate long internal Rust errors
+  if (raw.length > 120) {
+    return raw.slice(0, 120) + '…';
+  }
+  return raw;
+}
+
 export function useScanner() {
   const [nodes, setNodes] = useState<FileNode[]>([]);
   const [scanning, setScanning] = useState(false);
@@ -60,7 +81,7 @@ export function useScanner() {
       setNodes(result.nodes);
       setTotalSize(result.total_size);
     } catch (e) {
-      setError(String(e));
+      setError(sanitizeError(e));
     } finally {
       setScanning(false);
     }
@@ -70,11 +91,10 @@ export function useScanner() {
     setScanning(true);
     setError(null);
     try {
-      // Send the currently selected path, or empty string if global
       const junk = await invoke<FileNode[]>('scan_known_junk', { path: currentPath || '' });
       setKnownJunk(junk);
     } catch (e) {
-      setError(String(e));
+      setError(sanitizeError(e));
     } finally {
       setScanning(false);
     }
@@ -88,7 +108,7 @@ export function useScanner() {
       const result = await invoke<AppUninstallerInfo>('scan_app_for_uninstaller', { appPath });
       setAppUninstallerResult(result);
     } catch (e) {
-      setError(String(e));
+      setError(sanitizeError(e));
     } finally {
       setScanning(false);
     }
@@ -102,7 +122,7 @@ export function useScanner() {
       const result = await invoke<DuplicateGroup[]>('scan_model_duplicates');
       setDuplicateModels(result);
     } catch (e) {
-      setError(String(e));
+      setError(sanitizeError(e));
     } finally {
       setScanning(false);
     }
@@ -113,15 +133,12 @@ export function useScanner() {
   }, []);
 
   const classifyWithAI = useCallback(async (filesToClassify: FileNode[]) => {
-    if (!selectedModel) return;
+    if (!selectedModel) throw new Error('No model selected');
+    if (filesToClassify.length === 0) throw new Error('No files to classify. Please scan a directory first.');
     setClassifying(true);
     try {
-      // Find the current directory node to classify it and its immediate children
       let targetFiles = filesToClassify;
       if (currentPath) {
-        // If there's a current scan root, we primarily want to classify its children
-        // The disk scanner might return the root node or a list of top-level children
-        // We'll flatten the immediate children of the top-level nodes if they match the path
         targetFiles = [];
         for (const rootNode of filesToClassify) {
             targetFiles.push(rootNode);
@@ -149,8 +166,6 @@ export function useScanner() {
         model: selectedModel,
       });
 
-      // Merge classifications back into nodes
-      // We need a recursive map update function to apply classifications deeply
       const classMap = new Map(classifications.map((c) => [c.path, c]));
       
       const updateNodes = (nodeList: FileNode[]): FileNode[] => {
@@ -170,12 +185,14 @@ export function useScanner() {
       };
 
       setNodes((prev) => updateNodes(prev));
+      return classifications.length;
     } catch (e) {
       setError(String(e));
+      throw e; // re-throw so caller can handle toast
     } finally {
       setClassifying(false);
     }
-  }, [selectedModel]);
+  }, [selectedModel, currentPath]);
 
   const revealInExplorer = useCallback(async (path: string) => {
     try {
@@ -198,11 +215,12 @@ export function useScanner() {
   }, []);
 
   const cleanMemory = useCallback(async () => {
-    if (!selectedModel) return;
+    if (!selectedModel) throw new Error('No model selected');
     try {
       await invoke('clean_ollama_memory', { model: selectedModel });
     } catch (e) {
       console.error('Failed to clean memory:', e);
+      throw e; // re-throw so caller can show toast
     }
   }, [selectedModel]);
 
@@ -248,6 +266,27 @@ export function useScanner() {
     }
   };
 
+  const resetAll = useCallback(() => {
+    setNodes([]);
+    setScanning(false);
+    setTotalSize(0);
+    setCurrentPath('');
+    setError(null);
+    setClassifying(false);
+    setKnownJunk([]);
+    setDuplicateModels([]);
+    setAppUninstallerResult(null);
+  }, []);
+
+  const chatWithModel = async (message: string, model: string, url: string): Promise<string> => {
+    const result: string = await invoke('chat_with_model', {
+      message,
+      model,
+      ollamaUrl: url,
+    });
+    return result;
+  };
+
   return {
     nodes,
     scanning,
@@ -271,6 +310,8 @@ export function useScanner() {
     scanModelDuplicates,
     parseUserIntent,
     generateSystemReport,
+    chatWithModel,
+    resetAll,
     clearAppUninstallerResult,
     classifyWithAI,
     revealInExplorer,

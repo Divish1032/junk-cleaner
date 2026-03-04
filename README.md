@@ -6,11 +6,13 @@
 
 ## ✨ Features
 
-- **AI-Generated System Reports:** Get a readable health summary of your entire system volume directly from an LLM.
-- **Model Deduplication:** Find and isolate heavy `.gguf` weights duplicated across Ollama and LM Studio.
-- **Smart App Uninstaller:** Not just `.app` deletions. The uninstaller parses `.plist` files and deeply scans your Application Support and Preferences to root out lingering data.
-- **Copilot Chat:** Type natural language commands like "find all Xcode Derived Data" to automatically filter your disk without needing complex Regex logic.
-- **Glassmorphism UI:** Stunning aesthetic powered by Tauri and React.
+- **AI-Generated System Reports:** Get a readable health summary of your entire system volume directly from a local LLM.
+- **Model Deduplication:** Find and isolate heavy `.gguf` / `.safetensors` weights duplicated across Ollama and LM Studio — using SHA-256 checksums.
+- **Smart App Uninstaller:** Not just `.app` deletions — parses `.plist` files and deep-scans Application Support and Preferences for lingering data.
+- **Developer Cleanup:** Discovers regeneratable build artefacts (`node_modules`, `target`, `.venv`, `.next`, `__pycache__`, `DerivedData`, and 100+ more) across 15 ecosystems. Shows the exact command to regenerate each folder so you can delete safely.
+- **Copilot Chat:** Type natural language commands ("scan for junk", "find large files") — or just chat freely with the local AI. Non-scan queries get real conversational replies.
+- **Glassmorphism UI:** Polished dark interface with animated micro-interactions, a custom model picker with ⭐ Recommended badges, and consistent component sizing.
+- **Strictly Read-Only & Secure:** Multiple layers of write-protection — Tauri capability whitelist, Rust-side action whitelist, frontend whitelist, hardened AI system prompts, and localhost-only Ollama enforcement.
 
 ## 🚀 Getting Started
 

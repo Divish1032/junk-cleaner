@@ -1,0 +1,49 @@
+name: Security Audit
+# DEP-08 / DEP-09: Automated dependency vulnerability scanning.
+# Runs on every push to main and weekly to catch newly disclosed CVEs.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Every Monday at 08:00 UTC
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+jobs:
+  # ── Rust / Cargo audit ────────────────────────────────────────────────────
+  cargo-audit:
+    name: cargo audit (Rust CVE scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        working-directory: src-tauri
+        run: cargo audit
+
+  # ── npm / Node audit ──────────────────────────────────────────────────────
+  npm-audit:
+    name: npm audit (JS CVE scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run npm audit
+        # --audit-level=high: fail CI only on High or Critical severity issues
+        run: npm audit --audit-level=high
